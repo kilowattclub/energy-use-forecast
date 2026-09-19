@@ -1,51 +1,50 @@
 #![doc = include_str!("../README.md")]
 
 use chrono::{DateTime, Utc};
+use uom::si::f64::Power;
 
 pub mod historic_predictor;
 
 /// A measured household power draw. Only valid readings can be constructed.
 #[derive(Clone, Copy, Debug)]
-pub struct Reading {
+pub struct IntervalMeterReading {
     at: DateTime<Utc>,
-    power_kw: f64,
+    value: Power,
 }
 
-impl Reading {
-    /// `None` unless `power_kw` is finite and between 0 and 1000 kW.
-    pub fn new(at: DateTime<Utc>, power_kw: f64) -> Option<Self> {
-        (power_kw.is_finite() && (0.0..=1000.0).contains(&power_kw))
-            .then_some(Self { at, power_kw })
+impl IntervalMeterReading {
+    pub fn new(at: DateTime<Utc>, value: Power) -> Self {
+        Self { at, value }
     }
 
     pub fn at(&self) -> DateTime<Utc> {
         self.at
     }
 
-    pub fn power_kw(&self) -> f64 {
-        self.power_kw
+    pub fn value(&self) -> Power {
+        self.value
     }
 }
 
 /// Defines a generic household energy-use predictor that can learn from live power readings
-pub trait Predictor {
-    fn predict_at(&self, time: DateTime<Utc>) -> f64;
-    fn predict_range(&self, range: Vec<DateTime<Utc>>) -> Vec<f64> {
+pub trait Predictor<T> {
+    fn predict_at(&self, time: &DateTime<Utc>) -> T;
+    fn predict_range(&self, range: &[DateTime<Utc>]) -> Vec<T> {
         range
-            .into_iter()
+            .iter()
             .map(|time| self.predict_at(time))
             .collect()
     }
 
-    fn accept_measurement(&mut self, reading: Reading);
-    fn accept_measurements(&mut self, readings: Vec<Reading>) {
+    fn accept_reading(&mut self, reading: &IntervalMeterReading);
+    fn accept_readings(&mut self, readings: &[IntervalMeterReading]) {
         for reading in readings {
-            self.accept_measurement(reading);
+            self.accept_reading(reading);
         }
     }
 
-    fn accept_and_predict(&mut self, reading: Reading, range: Vec<DateTime<Utc>>) -> Vec<f64> {
-        self.accept_measurement(reading);
+    fn accept_and_predict(&mut self, reading: &IntervalMeterReading, range: &[DateTime<Utc>]) -> Vec<T> {
+        self.accept_reading(reading);
         self.predict_range(range)
     }
 }

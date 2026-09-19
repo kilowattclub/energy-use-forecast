@@ -1,29 +1,21 @@
 # energy-use-forecast
 
-Household electricity demand forecasts learned from measured half-hour usage. No Brain configuration, inverter, private repositories, or other Kilowatt Club packages are required.
-
-```rust,no_run
-use chrono::{Duration, Utc};
-use energy_use_forecast::historic_predictor::{HistoricPredictor, History};
-use energy_use_forecast::{Predictor, Reading};
-let now = Utc::now();
-let history = History::open("energy-use-forecast-history.json", now)?;
-let mut predictor = HistoricPredictor::new(history, chrono_tz::Europe::London);
-// Feed live power readings (kW); completed half-hours are learned and persisted.
-predictor.accept_measurement(Reading::new(now, 0.8).ok_or("invalid reading")?);
-// Forecast the next 24 hours, one full half-hour energy (kWh) per requested time.
-let times = (1..=48).map(|slot| now + Duration::minutes(30 * slot)).collect();
-let forecast = predictor.predict_range(times);
-assert_eq!(forecast.len(), 48);
-# Ok::<(), String>(())
-```
+Household electricity demand forecasts learned from measured half-hour usage.
+No Brain configuration, inverter, private repositories, or other Kilowatt Club
+packages are required.
 
 Predictors implement the `Predictor` trait and each lives in its own module, so
 they can be swapped. `historic_predictor::HistoricPredictor` forecasts from the
 household's own measured history. `predict_at` returns the full half-hour energy
 in kWh for the slot containing a time. The slot of the most recent `Reading`
 uses that reading's power instead. The predictor's clock is the latest reading.
+<<<<<<< HEAD
 The model distinguishes weekday/weekend usage, local clock time and recent sustained changes while limiting the influence of isolated spikes. Sparse history falls back to a pooled profile.
+=======
+The model distinguishes weekday/weekend usage, local clock time and recent
+sustained changes while limiting the influence of isolated spikes. Sparse history
+falls back to a pooled profile.
+>>>>>>> 8370141 (Rework the API...)
 
 `History` records **completed measured energy**, not synthetic data or a forecast.
 It atomically persists at most 28 days of valid complete slots, replaces duplicate
