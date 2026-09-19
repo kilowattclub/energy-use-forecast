@@ -4,27 +4,34 @@ Household electricity demand forecasts learned from measured half-hour usage. No
 
 ```rust,no_run
 use chrono::{Duration, Utc};
-use energy_use_forecast::{History, Observation, predict};
+use energy_use_forecast::historic_predictor::{HistoricPredictor, History};
+use energy_use_forecast::{Predictor, Reading};
 let now = Utc::now();
-let mut history = History::open("energy-use-forecast-history.json", now)?;
-// Record a measured, fully completed, UTC-aligned half-hour, in kWh.
-let start = chrono::DateTime::from_timestamp(now.timestamp().div_euclid(1800) * 1800 - 1800, 0).unwrap();
-history.record(Observation { time: start, energy_kwh: 0.4 }, now)?;
-let forecast = predict(history.observations().iter().copied(), start + Duration::minutes(30)..start + Duration::minutes(30) + Duration::days(1), now, chrono_tz::Europe::London, None);
+let history = History::open("energy-use-forecast-history.json", now)?;
+let mut predictor = HistoricPredictor::new(history, chrono_tz::Europe::London);
+// Feed live power readings (kW); completed half-hours are learned and persisted.
+predictor.accept_measurement(Reading::new(now, 0.8).ok_or("invalid reading")?);
+// Forecast the next 24 hours, one full half-hour energy (kWh) per requested time.
+let times = (1..=48).map(|slot| now + Duration::minutes(30 * slot)).collect();
+let forecast = predictor.predict_range(times);
 assert_eq!(forecast.len(), 48);
 # Ok::<(), String>(())
 ```
 
-`predict` returns full half-hour energy values in kWh, in order from the requested
-horizon start. Use aligned UTC half-hours. `Reading { at, power_kw }` can override
-the current slot with a recent measured power reading; stale readings expire.
+Predictors implement the `Predictor` trait and each lives in its own module, so
+they can be swapped. `historic_predictor::HistoricPredictor` forecasts from the
+household's own measured history. `predict_at` returns the full half-hour energy
+in kWh for the slot containing a time. The slot of the most recent `Reading`
+uses that reading's power instead. The predictor's clock is the latest reading.
 The model distinguishes weekday/weekend usage, local clock time and recent sustained changes while limiting the influence of isolated spikes. Sparse history falls back to a pooled profile.
 
 `History` records **completed measured energy**, not synthetic data or a forecast.
 It atomically persists at most 28 days of valid complete slots, replaces duplicate
-timestamps, and rejects partial/future/non-finite/negative observations. Missing
-files begin empty; corrupt files report an error. Use one writer per file. Callers
-can also supply their own history directly without using filesystem storage.
+timestamps, and rejects partial/future/non-finite/negative records. Missing
+files begin empty; corrupt files report an error. Use one writer per file.
+`HistoricPredictor` averages the readings in each half-hour into one record and
+records it once a later reading shows the slot is complete. A failed write is
+available from `take_persist_error`.
 
 ## Development and release
 

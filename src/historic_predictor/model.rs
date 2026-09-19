@@ -1,6 +1,6 @@
 //! Household demand by local clock time, with a gradual day-type preference.
 
-use super::Observation;
+use super::history::Record;
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc, Weekday};
 use chrono_tz::Tz;
 use std::collections::BTreeMap;
@@ -55,10 +55,10 @@ fn median(values: &mut [f64]) -> f64 {
 /// Correct a sustained household-wide level change once two completed local
 /// days agree. Ratios use the current model, so its existing adaptation is not
 /// counted again; isolated appliance loads cannot move the median day ratio.
-pub(crate) fn adjustment(history: &[Observation], now: DateTime<Utc>, timezone: Tz) -> f64 {
+pub(crate) fn adjustment(history: &[Record], now: DateTime<Utc>, timezone: Tz) -> f64 {
     let today = now.with_timezone(&timezone).date_naive();
     let recent = [today - Duration::days(1), today - Duration::days(2)];
-    let mut slots: [Vec<Observation>; 48] = std::array::from_fn(|_| Vec::new());
+    let mut slots: [Vec<Record>; 48] = std::array::from_fn(|_| Vec::new());
     for point in history {
         let local = point.time.with_timezone(&timezone);
         let slot = (local.hour() * 2 + local.minute() / 30) as usize;
@@ -118,7 +118,7 @@ pub(crate) fn adjustment(history: &[Observation], now: DateTime<Utc>, timezone: 
 
 /// Predict one complete half-hour from valid, completed historical readings.
 pub(crate) fn predict(
-    history: &[Observation],
+    history: &[Record],
     target: DateTime<Utc>,
     now: DateTime<Utc>,
     timezone: Tz,
@@ -167,5 +167,5 @@ pub(crate) fn predict(
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/forecast.rs"]
+#[path = "../../tests/unit/forecast.rs"]
 mod tests;

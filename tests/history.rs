@@ -1,5 +1,5 @@
 use chrono::{Duration, TimeZone, Utc};
-use energy_use_forecast::{History, Observation};
+use energy_use_forecast::historic_predictor::{History, Record};
 #[test]
 fn history_survives_restart_replaces_slots_and_rejects_incomplete_data() {
     let dir = std::env::temp_dir().join(format!(
@@ -10,14 +10,14 @@ fn history_survives_restart_replaces_slots_and_rejects_incomplete_data() {
     let _ = std::fs::remove_dir_all(&dir);
     let now = Utc.with_ymd_and_hms(2026, 9, 1, 12, 0, 0).unwrap();
     let mut history = History::open(&file, now).unwrap();
-    let point = Observation {
+    let point = Record {
         time: now - Duration::minutes(30),
         energy_kwh: 0.4,
     };
     history.record(point, now).unwrap();
     history
         .record(
-            Observation {
+            Record {
                 energy_kwh: 0.8,
                 ..point
             },
@@ -25,16 +25,16 @@ fn history_survives_restart_replaces_slots_and_rejects_incomplete_data() {
         )
         .unwrap();
     for invalid in [
-        Observation { time: now, ..point },
-        Observation {
+        Record { time: now, ..point },
+        Record {
             energy_kwh: f64::NAN,
             ..point
         },
-        Observation {
+        Record {
             time: point.time + Duration::seconds(1),
             ..point
         },
-        Observation {
+        Record {
             time: now - Duration::days(29),
             ..point
         },

@@ -1,15 +1,22 @@
 //! Durable completed half-hour measurements for forecasting.
-use crate::{
-    measurements::{prepare_history, valid_observation, HISTORY_DAYS},
-    Observation,
-};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, DurationRound, TimeDelta, Utc};
 use std::path::{Path, PathBuf};
+use serde::{Deserialize, Serialize};
+
+pub const HISTORY_DAYS: i64 = 28;
+
+/// Completed half-hour energies. Observations may arrive in any order.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct Record {
+    pub time: DateTime<Utc>,
+    pub energy_kwh: f64,
+}
 
 pub struct History {
     path: PathBuf,
-    observations: Vec<Observation>,
+    observations: Vec<Record>,
 }
+
 impl History {
     /// Open a history file. A missing file starts empty; corrupt files return an
     /// error rather than silently overwriting the caller's recorded history.
@@ -25,14 +32,14 @@ impl History {
             observations: prepare_history(observations, now),
         })
     }
-    pub fn observations(&self) -> &[Observation] {
+    pub fn observations(&self) -> &[Record] {
         &self.observations
     }
     /// Persist a measured complete slot (kWh). Re-recording its timestamp replaces
     /// that slot. Partial, future, expired, negative and non-finite values fail.
     /// Keep one writer per file; use separate paths for separate meters.
-    pub fn record(&mut self, observation: Observation, now: DateTime<Utc>) -> Result<(), String> {
-        if !valid_observation(&observation, now, HISTORY_DAYS) {
+    pub fn record(&mut self, observation: Record, now: DateTime<Utc>) -> Result<(), String> {
+        if !valid_record(&observation, now, HISTORY_DAYS) {
             return Err("invalid completed half-hour observation".into());
         }
         let mut next = self.observations.clone();
@@ -56,4 +63,35 @@ impl History {
         self.observations = next;
         Ok(())
     }
+}
+
+/// The start of the UTC half-hour containing `time`.
+pub fn slot_start(time: DateTime<Utc>) -> DateTime<Utc> {
+    // Truncation only fails for dates beyond chrono's nanosecond range.
+    time.duration_trunc(TimeDelta::minutes(30)).unwrap_or(time)
+}
+
+/// Keep the collector and direct model inputs consistent. Never learn from a
+/// partial slot, an off-grid timestamp or a corrupt energy value.
+pub fn valid_record(point: &crate::historic_predictor::Record, now: DateTime<Utc>, days: i64) -> bool {
+    point.time >= now - Duration::days(days)
+        && point.time + Duration::minutes(30) <= now
+        && point.time.timestamp().rem_euclid(1800) == 0
+        && point.time.timestamp_subsec_nanos() == 0
+        && [point.energy_kwh]
+        .iter()
+        .all(|v| v.is_finite() && (0.0..=500.0).contains(v))
+}
+
+pub fn prepare_history(
+    history: impl IntoIterator<Item =Record>,
+    now: DateTime<Utc>,
+) -> Vec<Record> {
+    let mut history: Vec<_> = history
+        .into_iter()
+        .filter(|p| valid_record(p, now, HISTORY_DAYS))
+        .collect();
+    history.sort_by_key(|p| p.time);
+    history.dedup_by_key(|p| p.time);
+    history
 }
