@@ -1,9 +1,10 @@
 //! Household demand by local clock time, with a gradual day-type preference.
 
-use super::Observation;
+use super::history::Record;
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc, Weekday};
 use chrono_tz::Tz;
 use std::collections::BTreeMap;
+use uom::si::energy::kilowatt_hour;
 
 const RECENCY_HALF_LIFE_DAYS: f64 = 7.0;
 const MATCHING_DAYS_FOR_FULL_WEIGHT: f64 = 4.0;
@@ -55,10 +56,10 @@ fn median(values: &mut [f64]) -> f64 {
 /// Correct a sustained household-wide level change once two completed local
 /// days agree. Ratios use the current model, so its existing adaptation is not
 /// counted again; isolated appliance loads cannot move the median day ratio.
-pub(crate) fn adjustment(history: &[Observation], now: DateTime<Utc>, timezone: Tz) -> f64 {
+pub(crate) fn adjustment(history: &[Record], now: DateTime<Utc>, timezone: Tz) -> f64 {
     let today = now.with_timezone(&timezone).date_naive();
     let recent = [today - Duration::days(1), today - Duration::days(2)];
-    let mut slots: [Vec<Observation>; 48] = std::array::from_fn(|_| Vec::new());
+    let mut slots: [Vec<Record>; 48] = std::array::from_fn(|_| Vec::new());
     for point in history {
         let local = point.time.with_timezone(&timezone);
         let slot = (local.hour() * 2 + local.minute() / 30) as usize;
@@ -87,7 +88,7 @@ pub(crate) fn adjustment(history: &[Observation], now: DateTime<Utc>, timezone: 
             if expected < 0.01 {
                 continue;
             }
-            let actual = actuals.iter().map(|p| p.energy_kwh).sum::<f64>() / actuals.len() as f64;
+            let actual = actuals.iter().map(|p| p.energy.get::<kilowatt_hour>()).sum::<f64>() / actuals.len() as f64;
             ratios.push(actual / expected);
         }
         // This also permits the 46-slot spring day while rejecting incomplete
@@ -118,7 +119,7 @@ pub(crate) fn adjustment(history: &[Observation], now: DateTime<Utc>, timezone: 
 
 /// Predict one complete half-hour from valid, completed historical readings.
 pub(crate) fn predict(
-    history: &[Observation],
+    history: &[Record],
     target: DateTime<Utc>,
     now: DateTime<Utc>,
     timezone: Tz,
@@ -135,7 +136,7 @@ pub(crate) fn predict(
         let day = days
             .entry(local.date_naive())
             .or_insert((0.0, 0, point.time));
-        day.0 += point.energy_kwh;
+        day.0 += point.energy.get::<kilowatt_hour>();
         day.1 += 1;
         day.2 = day.2.max(point.time);
     }
@@ -167,5 +168,5 @@ pub(crate) fn predict(
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/forecast.rs"]
+#[path = "../../tests/unit/forecast.rs"]
 mod tests;

@@ -1,10 +1,10 @@
 use super::*;
 use chrono::{Duration, TimeZone};
 
-fn point(at: DateTime<Utc>, usage: f64) -> Observation {
-    Observation {
+fn point(at: DateTime<Utc>, usage: f64) -> Record {
+    Record {
         time: at,
-        energy_kwh: usage,
+        energy: uom::si::f64::Energy::new::<kilowatt_hour>(usage),
     }
 }
 
@@ -12,7 +12,7 @@ fn history_for(
     target: DateTime<Utc>,
     days: i64,
     usage: impl Fn(i64, DateTime<Utc>) -> f64,
-) -> Vec<Observation> {
+) -> Vec<Record> {
     (1..=days)
         .map(|age| {
             let at = target - Duration::days(age);
@@ -21,7 +21,7 @@ fn history_for(
         .collect()
 }
 
-fn yesterday_average(history: &[Observation], now: DateTime<Utc>) -> f64 {
+fn yesterday_average(history: &[Record], now: DateTime<Utc>) -> f64 {
     let yesterday = now.date_naive().pred_opt().unwrap();
     let mut energy = 0.0;
     let mut weight = 0.0;
@@ -31,7 +31,7 @@ fn yesterday_average(history: &[Observation], now: DateTime<Utc>) -> f64 {
         } else {
             1.0
         };
-        energy += sample.energy_kwh * w;
+        energy += sample.energy.get::<kilowatt_hour>() * w;
         weight += w;
     }
     energy / weight
@@ -131,7 +131,7 @@ fn local_clock_matching_survives_dst_and_repeated_hours_count_as_one_day() {
 fn complete_history(
     now: DateTime<Utc>,
     usage: impl Fn(i64, i64, DateTime<Utc>) -> f64,
-) -> Vec<Observation> {
+) -> Vec<Record> {
     (1..=28)
         .flat_map(|age| {
             let usage = &usage;
