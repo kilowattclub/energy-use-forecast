@@ -1,5 +1,7 @@
 use chrono::{Duration, TimeZone, Utc};
 use energy_use_forecast::historic_predictor::{History, Record};
+use uom::si::energy::kilowatt_hour;
+use uom::si::f64::Energy;
 #[test]
 fn history_survives_restart_replaces_slots_and_rejects_incomplete_data() {
     let dir = std::env::temp_dir().join(format!(
@@ -12,13 +14,13 @@ fn history_survives_restart_replaces_slots_and_rejects_incomplete_data() {
     let mut history = History::open(&file, now).unwrap();
     let point = Record {
         time: now - Duration::minutes(30),
-        energy_kwh: 0.4,
+        energy: Energy::new::<kilowatt_hour>(0.4),
     };
     history.record(point, now).unwrap();
     history
         .record(
             Record {
-                energy_kwh: 0.8,
+                energy: Energy::new::<kilowatt_hour>(0.8),
                 ..point
             },
             now,
@@ -27,7 +29,7 @@ fn history_survives_restart_replaces_slots_and_rejects_incomplete_data() {
     for invalid in [
         Record { time: now, ..point },
         Record {
-            energy_kwh: f64::NAN,
+            energy: Energy::new::<kilowatt_hour>(f64::NAN),
             ..point
         },
         Record {
@@ -43,7 +45,7 @@ fn history_survives_restart_replaces_slots_and_rejects_incomplete_data() {
     }
     let restored = History::open(&file, now).unwrap();
     assert_eq!(restored.observations().len(), 1);
-    assert_eq!(restored.observations()[0].energy_kwh, 0.8);
+    assert_eq!(restored.observations()[0].energy.get::<kilowatt_hour>(), 0.8);
     assert!(History::open(&file, now + Duration::days(29))
         .unwrap()
         .observations()

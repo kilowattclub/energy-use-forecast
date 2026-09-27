@@ -54,7 +54,7 @@ fn learns_completed_slots_from_readings_and_forecasts_them() {
     assert!(persisted
         .observations()
         .iter()
-        .all(|p| p.energy_kwh == 0.5 && p.time + Duration::minutes(30) <= now));
+        .all(|p| kwh(p.energy) == 0.5 && p.time + Duration::minutes(30) <= now));
     std::fs::remove_dir_all(dir).unwrap();
 }
 

@@ -2,6 +2,8 @@
 use chrono::{DateTime, Duration, DurationRound, TimeDelta, Utc};
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use uom::si::energy::kilowatt_hour;
+use uom::si::f64::Energy;
 
 pub const HISTORY_DAYS: i64 = 28;
 
@@ -9,7 +11,24 @@ pub const HISTORY_DAYS: i64 = 28;
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Record {
     pub time: DateTime<Utc>,
-    pub energy_kwh: f64,
+    /// Stored as kWh under its original key, so existing history files still load.
+    #[serde(rename = "energy_kwh", with = "kwh")]
+    pub energy: Energy,
+}
+
+/// Serializes an [`Energy`] as a plain number of kilowatt-hours.
+mod kwh {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use uom::si::energy::kilowatt_hour;
+    use uom::si::f64::Energy;
+
+    pub fn serialize<S: Serializer>(energy: &Energy, serializer: S) -> Result<S::Ok, S::Error> {
+        energy.get::<kilowatt_hour>().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Energy, D::Error> {
+        f64::deserialize(deserializer).map(Energy::new::<kilowatt_hour>)
+    }
 }
 
 pub struct History {
@@ -35,7 +54,7 @@ impl History {
     pub fn observations(&self) -> &[Record] {
         &self.observations
     }
-    /// Persist a measured complete slot (kWh). Re-recording its timestamp replaces
+    /// Persist a measured complete slot. Re-recording its timestamp replaces
     /// that slot. Partial, future, expired, negative and non-finite values fail.
     /// Keep one writer per file; use separate paths for separate meters.
     pub fn record(&mut self, observation: Record, now: DateTime<Utc>) -> Result<(), String> {
@@ -78,9 +97,8 @@ pub fn valid_record(point: &crate::historic_predictor::Record, now: DateTime<Utc
         && point.time + Duration::minutes(30) <= now
         && point.time.timestamp().rem_euclid(1800) == 0
         && point.time.timestamp_subsec_nanos() == 0
-        && [point.energy_kwh]
-        .iter()
-        .all(|v| v.is_finite() && (0.0..=500.0).contains(v))
+        && point.energy.is_finite()
+        && (0.0..=500.0).contains(&point.energy.get::<kilowatt_hour>())
 }
 
 pub fn prepare_history(

@@ -4,6 +4,7 @@ use super::history::Record;
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc, Weekday};
 use chrono_tz::Tz;
 use std::collections::BTreeMap;
+use uom::si::energy::kilowatt_hour;
 
 const RECENCY_HALF_LIFE_DAYS: f64 = 7.0;
 const MATCHING_DAYS_FOR_FULL_WEIGHT: f64 = 4.0;
@@ -87,7 +88,7 @@ pub(crate) fn adjustment(history: &[Record], now: DateTime<Utc>, timezone: Tz) -
             if expected < 0.01 {
                 continue;
             }
-            let actual = actuals.iter().map(|p| p.energy_kwh).sum::<f64>() / actuals.len() as f64;
+            let actual = actuals.iter().map(|p| p.energy.get::<kilowatt_hour>()).sum::<f64>() / actuals.len() as f64;
             ratios.push(actual / expected);
         }
         // This also permits the 46-slot spring day while rejecting incomplete
@@ -135,7 +136,7 @@ pub(crate) fn predict(
         let day = days
             .entry(local.date_naive())
             .or_insert((0.0, 0, point.time));
-        day.0 += point.energy_kwh;
+        day.0 += point.energy.get::<kilowatt_hour>();
         day.1 += 1;
         day.2 = day.2.max(point.time);
     }

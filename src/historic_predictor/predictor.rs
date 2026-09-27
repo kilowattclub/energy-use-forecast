@@ -82,7 +82,7 @@ impl HistoricPredictor {
     fn finish_slot(&mut self, slot: &SettlementPeriod, now: DateTime<Utc>) {
         let observation = Record {
             time: slot.start,
-            energy_kwh: slot.energy().get::<kilowatt_hour>(),
+            energy: slot.energy(),
         };
         if let Err(error) = self.history.record(observation, now) {
             self.persist_error = Some(error);

@@ -4,7 +4,7 @@ use chrono::{Duration, TimeZone};
 fn point(at: DateTime<Utc>, usage: f64) -> Record {
     Record {
         time: at,
-        energy_kwh: usage,
+        energy: uom::si::f64::Energy::new::<kilowatt_hour>(usage),
     }
 }
 
@@ -31,7 +31,7 @@ fn yesterday_average(history: &[Record], now: DateTime<Utc>) -> f64 {
         } else {
             1.0
         };
-        energy += sample.energy_kwh * w;
+        energy += sample.energy.get::<kilowatt_hour>() * w;
         weight += w;
     }
     energy / weight
