@@ -45,7 +45,10 @@ fn history_survives_restart_replaces_slots_and_rejects_incomplete_data() {
     }
     let restored = History::open(&file, now).unwrap();
     assert_eq!(restored.observations().len(), 1);
-    assert_eq!(restored.observations()[0].energy.get::<kilowatt_hour>(), 0.8);
+    assert_eq!(
+        restored.observations()[0].energy.get::<kilowatt_hour>(),
+        0.8
+    );
     assert!(History::open(&file, now + Duration::days(29))
         .unwrap()
         .observations()

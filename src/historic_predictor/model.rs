@@ -88,7 +88,11 @@ pub(crate) fn adjustment(history: &[Record], now: DateTime<Utc>, timezone: Tz) -
             if expected < 0.01 {
                 continue;
             }
-            let actual = actuals.iter().map(|p| p.energy.get::<kilowatt_hour>()).sum::<f64>() / actuals.len() as f64;
+            let actual = actuals
+                .iter()
+                .map(|p| p.energy.get::<kilowatt_hour>())
+                .sum::<f64>()
+                / actuals.len() as f64;
             ratios.push(actual / expected);
         }
         // This also permits the 46-slot spring day while rejecting incomplete

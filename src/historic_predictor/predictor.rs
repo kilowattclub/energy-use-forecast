@@ -1,13 +1,13 @@
 //! [`Predictor`] implementation backed by durable half-hour history.
-use super::history::{History, prepare_history, slot_start, Record};
+use super::history::{prepare_history, slot_start, History, Record};
 use super::model;
-use crate::{Predictor, IntervalMeterReading};
+use crate::{IntervalMeterReading, Predictor};
 use chrono::{DateTime, Duration, Utc};
 use chrono_tz::Tz;
-use uom::si::f64::{Time, Energy, Power};
-use uom::si::time::hour;
 use uom::si::energy::kilowatt_hour;
+use uom::si::f64::{Energy, Power, Time};
 use uom::si::power::kilowatt;
+use uom::si::time::hour;
 
 /// Forecast used until there is history to learn from (kWh per half-hour).
 const DEFAULT_KWH: f64 = 0.16;

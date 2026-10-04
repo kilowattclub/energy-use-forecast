@@ -1,7 +1,7 @@
 //! Durable completed half-hour measurements for forecasting.
 use chrono::{DateTime, Duration, DurationRound, TimeDelta, Utc};
-use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use uom::si::energy::kilowatt_hour;
 use uom::si::f64::Energy;
 
@@ -92,7 +92,11 @@ pub fn slot_start(time: DateTime<Utc>) -> DateTime<Utc> {
 
 /// Keep the collector and direct model inputs consistent. Never learn from a
 /// partial slot, an off-grid timestamp or a corrupt energy value.
-pub fn valid_record(point: &crate::historic_predictor::Record, now: DateTime<Utc>, days: i64) -> bool {
+pub fn valid_record(
+    point: &crate::historic_predictor::Record,
+    now: DateTime<Utc>,
+    days: i64,
+) -> bool {
     point.time >= now - Duration::days(days)
         && point.time + Duration::minutes(30) <= now
         && point.time.timestamp().rem_euclid(1800) == 0
@@ -102,7 +106,7 @@ pub fn valid_record(point: &crate::historic_predictor::Record, now: DateTime<Utc
 }
 
 pub fn prepare_history(
-    history: impl IntoIterator<Item =Record>,
+    history: impl IntoIterator<Item = Record>,
     now: DateTime<Utc>,
 ) -> Vec<Record> {
     let mut history: Vec<_> = history

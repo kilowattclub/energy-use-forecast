@@ -30,10 +30,7 @@ impl IntervalMeterReading {
 pub trait Predictor<T> {
     fn predict_at(&self, time: &DateTime<Utc>) -> T;
     fn predict_range(&self, range: &[DateTime<Utc>]) -> Vec<T> {
-        range
-            .iter()
-            .map(|time| self.predict_at(time))
-            .collect()
+        range.iter().map(|time| self.predict_at(time)).collect()
     }
 
     fn accept_reading(&mut self, reading: &IntervalMeterReading);
@@ -43,7 +40,11 @@ pub trait Predictor<T> {
         }
     }
 
-    fn accept_and_predict(&mut self, reading: &IntervalMeterReading, range: &[DateTime<Utc>]) -> Vec<T> {
+    fn accept_and_predict(
+        &mut self,
+        reading: &IntervalMeterReading,
+        range: &[DateTime<Utc>],
+    ) -> Vec<T> {
         self.accept_reading(reading);
         self.predict_range(range)
     }
