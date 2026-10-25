@@ -1,6 +1,7 @@
 //! [`Predictor`] implementation backed by durable half-hour history.
 use super::history::{prepare_history, slot_start, History, Record};
 use super::model;
+use crate::default_predictor::DefaultPredictor;
 use crate::{IntervalMeterReading, Predictor};
 use chrono::{DateTime, Duration, Utc};
 use chrono_tz::Tz;
@@ -8,9 +9,6 @@ use uom::si::energy::kilowatt_hour;
 use uom::si::f64::{Energy, Power, Time};
 use uom::si::power::kilowatt;
 use uom::si::time::hour;
-
-/// Forecast used until there is history to learn from (kWh per half-hour).
-const DEFAULT_KWH: f64 = 0.16;
 
 /// Length of one settlement period. uom constructors aren't `const`.
 fn period_length() -> Time {
@@ -46,8 +44,12 @@ impl SettlementPeriod {
 /// Readings are averaged into half-hour energies. A slot joins the persisted
 /// [`History`] once a later reading shows it is complete, so a partial slot is
 /// never learned from. The predictor's clock is the latest reading's timestamp.
+///
+/// A slot with no history to learn from is forecast from the bundled
+/// [`DefaultPredictor`] profile.
 pub struct HistoricPredictor {
     history: History,
+    fallback: DefaultPredictor,
     timezone: Tz,
     slot: Option<SettlementPeriod>,
     latest: Option<IntervalMeterReading>,
@@ -58,6 +60,7 @@ impl HistoricPredictor {
     pub fn new(history: History, timezone: Tz) -> Self {
         Self {
             history,
+            fallback: DefaultPredictor::new(),
             timezone,
             slot: None,
             latest: None,
@@ -79,6 +82,14 @@ impl HistoricPredictor {
         })
     }
 
+    /// The default profile's energy for the half-hour starting at `slot`. The
+    /// bundled profile's points sit at slot midpoints and are each slot's
+    /// measured average, so the midpoint value is that slot's mean power.
+    fn fallback_energy(&self, slot: DateTime<Utc>) -> Energy {
+        let slot_middle = slot + Duration::minutes(15);
+        self.fallback.predict_at(&slot_middle) * period_length()
+    }
+
     fn finish_slot(&mut self, slot: &SettlementPeriod, now: DateTime<Utc>) {
         let observation = Record {
             time: slot.start,
@@ -92,18 +103,23 @@ impl HistoricPredictor {
 
 impl Predictor<Energy> for HistoricPredictor {
     /// Energy in the half-hour containing `time`. The slot of the latest reading
-    /// is that reading's power; every other slot comes from the learned history.
+    /// is that reading's power; every other slot comes from the learned history,
+    /// or from the default profile when the history has nothing for that slot.
     fn predict_at(&self, time: &DateTime<Utc>) -> Energy {
         let slot = slot_start(*time);
-        if let Some(reading) = self.latest.filter(|r| slot_start(r.at()) == slot) {
+        if let Some(reading) = self
+            .latest
+            .filter(|reading| slot_start(reading.at()) == slot)
+        {
             return reading.value() * period_length();
         }
         let now = self.now().unwrap_or(*time);
         let history = prepare_history(self.history.observations().iter().copied(), now);
         let adjustment = model::adjustment(&history, now, self.timezone);
-        let kwh = model::predict(&history, slot, now, self.timezone)
-            .map_or(DEFAULT_KWH, |predicted| predicted * adjustment);
-        Energy::new::<kilowatt_hour>(kwh)
+        match model::predict(&history, slot, now, self.timezone) {
+            Some(predicted_kwh) => Energy::new::<kilowatt_hour>(predicted_kwh * adjustment),
+            None => self.fallback_energy(slot),
+        }
     }
 
     /// Readings older than one already seen are ignored.
