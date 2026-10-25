@@ -11,7 +11,8 @@ in kWh for the slot containing a time. The slot of the most recent `Reading`
 uses that reading's power instead. The predictor's clock is the latest reading.
 The model distinguishes weekday/weekend usage, local clock time and recent
 sustained changes while limiting the influence of isolated spikes. Sparse history
-falls back to a pooled profile.
+falls back to a pooled profile, and a slot with no history at all is forecast
+from the `default_predictor` profile.
 
 `History` records **completed measured energy**, not synthetic data or a forecast.
 It atomically persists at most 28 days of valid complete slots, replaces duplicate

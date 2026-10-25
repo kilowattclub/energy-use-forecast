@@ -1,4 +1,5 @@
 use chrono::{DateTime, Duration, TimeZone, Utc};
+use energy_use_forecast::default_predictor::DefaultPredictor;
 use energy_use_forecast::historic_predictor::{HistoricPredictor, History};
 use energy_use_forecast::{IntervalMeterReading, Predictor};
 use uom::si::energy::kilowatt_hour;
@@ -59,7 +60,7 @@ fn learns_completed_slots_from_readings_and_forecasts_them() {
 }
 
 #[test]
-fn predicts_a_default_without_any_history() {
+fn predicts_the_default_profile_without_any_history() {
     let dir = std::env::temp_dir().join(format!(
         "energy_use_forecast-predictor-empty-{}",
         std::process::id()
@@ -67,5 +68,17 @@ fn predicts_a_default_without_any_history() {
     let now = Utc.with_ymd_and_hms(2026, 9, 1, 12, 0, 0).unwrap();
     let history = History::open(dir.join("history.json"), now).unwrap();
     let predictor = HistoricPredictor::new(history, chrono_tz::UTC);
-    assert_eq!(kwh(predictor.predict_at(&now)), 0.16);
+    // The default profile's 12:15 point is 0.437 kW, for half an hour.
+    let expected_kwh = 0.437 * 0.5;
+    assert!((kwh(predictor.predict_at(&now)) - expected_kwh).abs() < 1e-9);
+    // Every time in the slot gets the slot's energy.
+    let later_in_slot = now + Duration::minutes(20);
+    assert!((kwh(predictor.predict_at(&later_in_slot)) - expected_kwh).abs() < 1e-9);
+
+    let default = DefaultPredictor::new();
+    let evening_slot = now + Duration::hours(7);
+    let evening_middle_kw = default
+        .predict_at(&(evening_slot + Duration::minutes(15)))
+        .get::<kilowatt>();
+    assert!((kwh(predictor.predict_at(&evening_slot)) - evening_middle_kw * 0.5).abs() < 1e-9);
 }
