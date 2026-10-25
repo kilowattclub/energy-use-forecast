@@ -9,13 +9,9 @@ they can be swapped. `historic_predictor::HistoricPredictor` forecasts from the
 household's own measured history. `predict_at` returns the full half-hour energy
 in kWh for the slot containing a time. The slot of the most recent `Reading`
 uses that reading's power instead. The predictor's clock is the latest reading.
-<<<<<<< HEAD
-The model distinguishes weekday/weekend usage, local clock time and recent sustained changes while limiting the influence of isolated spikes. Sparse history falls back to a pooled profile.
-=======
 The model distinguishes weekday/weekend usage, local clock time and recent
 sustained changes while limiting the influence of isolated spikes. Sparse history
 falls back to a pooled profile.
->>>>>>> 8370141 (Rework the API...)
 
 `History` records **completed measured energy**, not synthetic data or a forecast.
 It atomically persists at most 28 days of valid complete slots, replaces duplicate

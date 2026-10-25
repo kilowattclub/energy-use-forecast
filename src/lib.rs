@@ -3,8 +3,9 @@
 use chrono::{DateTime, Utc};
 use uom::si::f64::Power;
 
-pub mod historic_predictor;
 pub mod constant_predictor;
+pub mod default_predictor;
+pub mod historic_predictor;
 
 /// A measured household power draw. Only valid readings can be constructed.
 #[derive(Clone, Copy, Debug)]
