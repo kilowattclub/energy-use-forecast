@@ -11,28 +11,39 @@ fn flat_prior(n: usize, half_life_days: f64) -> Prior {
 }
 
 /// Solve a small linear system by Gaussian elimination with partial pivoting.
-fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
-    let n = b.len();
-    for col in 0..n {
-        let pivot = (col..n)
-            .max_by(|i, j| a[*i][col].abs().total_cmp(&a[*j][col].abs()))
+fn solve(mut matrix: Vec<Vec<f64>>, mut right_hand_side: Vec<f64>) -> Vec<f64> {
+    let size = right_hand_side.len();
+    for column in 0..size {
+        let pivot_index = (column..size)
+            .max_by(|first_row, second_row| {
+                matrix[*first_row][column]
+                    .abs()
+                    .total_cmp(&matrix[*second_row][column].abs())
+            })
             .unwrap();
-        a.swap(col, pivot);
-        b.swap(col, pivot);
-        for row in col + 1..n {
-            let factor = a[row][col] / a[col][col];
-            for k in col..n {
-                a[row][k] -= factor * a[col][k];
+        matrix.swap(column, pivot_index);
+        right_hand_side.swap(column, pivot_index);
+        for row_index in column + 1..size {
+            // Split so the pivot row can be read while a lower row is changed.
+            let (upper_rows, lower_rows) = matrix.split_at_mut(row_index);
+            let pivot_row = &upper_rows[column];
+            let target_row = &mut lower_rows[0];
+            let factor = target_row[column] / pivot_row[column];
+            for (target, pivot) in target_row[column..].iter_mut().zip(&pivot_row[column..]) {
+                *target -= factor * pivot;
             }
-            b[row] -= factor * b[col];
+            right_hand_side[row_index] -= factor * right_hand_side[column];
         }
     }
-    let mut x = vec![0.0; n];
-    for row in (0..n).rev() {
-        let rest = (row + 1..n).map(|k| a[row][k] * x[k]).sum::<f64>();
-        x[row] = (b[row] - rest) / a[row][row];
+    let mut solution = vec![0.0; size];
+    for row_index in (0..size).rev() {
+        let solved_part = (row_index + 1..size)
+            .map(|column| matrix[row_index][column] * solution[column])
+            .sum::<f64>();
+        solution[row_index] =
+            (right_hand_side[row_index] - solved_part) / matrix[row_index][row_index];
     }
-    x
+    solution
 }
 
 fn rows() -> Vec<(Vec<f64>, f64)> {
